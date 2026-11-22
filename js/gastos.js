@@ -30,6 +30,7 @@
   const inputFecha = document.getElementById('fecha');
   const selectCategoria = document.getElementById('categoria');
   const inputDescripcion = document.getElementById('descripcion');
+  const inputComprobante = document.getElementById('comprobante');
   const mensajeError = document.getElementById('mensaje-error');
   const btnGuardar = document.getElementById('btn-guardar-gasto');
   const btnCancelarEdicion = document.getElementById('btn-cancelar-edicion');
@@ -171,13 +172,34 @@
 
     const datos = { tipo_movimiento: tipo, monto, fecha, categoria, descripcion, url_comprobante: null };
 
+    // Comprobante opcional: se sube a la API externa y solo se guarda la URL.
+    const archivo = inputComprobante.files[0];
+    let urlSubida = null;
+    if (archivo) {
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = 'SUBIENDO COMPROBANTE...';
+      try {
+        urlSubida = await Comprobantes.subir(archivo);
+      } catch (err) {
+        console.error(err);
+        const seguir = window.confirm(
+          `No se pudo subir el comprobante: ${err.message}\n\n¿Querés guardar el movimiento sin comprobante?`
+        );
+        if (!seguir) return;
+      } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = inputId.value ? 'ACTUALIZAR MOVIMIENTO' : 'GUARDAR MOVIMIENTO';
+      }
+    }
+
     try {
       if (inputId.value) {
         const id = Number(inputId.value);
         const actual = DB.obtenerPorId(id);
-        datos.url_comprobante = actual ? actual.url_comprobante : null;
+        datos.url_comprobante = urlSubida || (actual ? actual.url_comprobante : null);
         await DB.actualizarMovimiento(id, datos);
       } else {
+        datos.url_comprobante = urlSubida;
         await DB.insertarMovimiento(datos);
       }
     } catch (err) {
@@ -297,11 +319,24 @@
         <td>${escaparHTML(m.categoria)}</td>
         <td>${escaparHTML(m.descripcion)}</td>
         <td class="${esIngreso ? 'tipo-ingreso' : 'tipo-egreso'}">${esIngreso ? '+' : '-'}${formatoMoneda(m.monto)}</td>
+        <td class="celda-comprobante"></td>
         <td class="acciones-celda">
           <button type="button" class="btn-editar" data-id="${m.id}" aria-label="Editar ${escaparHTML(m.descripcion)}">Editar</button>
           <button type="button" class="btn-eliminar" data-id="${m.id}" aria-label="Eliminar ${escaparHTML(m.descripcion)}">Eliminar</button>
         </td>
       `;
+      const celdaComprobante = tr.querySelector('.celda-comprobante');
+      if (m.url_comprobante && /^https:\/\//i.test(m.url_comprobante)) {
+        const enlace = document.createElement('a');
+        enlace.href = m.url_comprobante;
+        enlace.target = '_blank';
+        enlace.rel = 'noopener noreferrer';
+        enlace.textContent = 'Ver';
+        celdaComprobante.appendChild(enlace);
+      } else {
+        celdaComprobante.textContent = '—';
+      }
+
       listaGastos.appendChild(tr);
     }
 
@@ -316,6 +351,6 @@
   function escaparHTML(texto) {
     const div = document.createElement('div');
     div.textContent = texto;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 })();

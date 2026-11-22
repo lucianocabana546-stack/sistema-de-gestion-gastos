@@ -85,6 +85,11 @@
             <input type="text" id="descripcion" name="descripcion" maxlength="100" required />
           </div>
 
+          <div class="field-group">
+            <label for="comprobante">COMPROBANTE (OPCIONAL)</label>
+            <input type="file" id="comprobante" name="comprobante" accept="image/*" />
+          </div>
+
           <div id="mensaje-error" class="alert-error" role="alert" hidden></div>
 
           <div class="form-actions">
@@ -105,6 +110,7 @@
                 <th scope="col">Categoría</th>
                 <th scope="col">Descripción</th>
                 <th scope="col">Monto</th>
+                <th scope="col">Comprobante</th>
                 <th scope="col">Acciones</th>
               </tr>
             </thead>
@@ -174,6 +180,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
   <script src="js/db.js"></script>
   <script src="js/reportes.js"></script>
+  <script src="js/comprobantes.js"></script>
   <script src="js/gastos.js"></script>
 </body>
 </html>
