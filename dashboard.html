@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gestión de Gastos - Sistema de Gestión de Gastos" />
+  <title>Gestión de Gastos | SGG</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="bg-overlay"></div>
+
+  <header class="top-header">
+    <div class="brand-mark">
+      <span class="diamond">◆</span> SGG
+    </div>
+    <div class="navbar-actions">
+      <span id="usuario-activo-label" class="user-badge"></span>
+      <button type="button" id="btn-cerrar-sesion" class="btn-secondary">Salir</button>
+      <button type="button" id="btn-tema" class="theme-switch" aria-label="Alternar modo día o noche">
+        <span class="switch-knob"></span>
+        <span class="switch-icon" aria-hidden="true">☾</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="auth-main">
+    <section class="auth-box auth-box-wide" aria-labelledby="titulo-gastos">
+      <h1 id="titulo-gastos" class="serif-title">Gestión de Gastos</h1>
+
+      <!-- Navegación de pestañas del módulo -->
+      <div class="mode-tabs" role="tablist" aria-label="Secciones de gestión de gastos">
+        <button type="button" id="tab-ingresar" class="mode-tab active" role="tab" aria-selected="true">
+          INGRESAR GASTO
+        </button>
+        <button type="button" id="tab-ver" class="mode-tab" role="tab" aria-selected="false">
+          VER GASTOS
+        </button>
+        <button type="button" id="tab-consultar" class="mode-tab" role="tab" aria-selected="false">
+          CONSULTAR GASTOS
+        </button>
+      </div>
+
+      <!-- Vista 1: Ingresar / Editar Gasto -->
+      <div id="panel-ingresar" role="tabpanel">
+        <form id="form-gasto" novalidate>
+          <input type="hidden" id="gasto-id" value="" />
+
+          <div class="field-group">
+            <label for="monto">MONTO</label>
+            <input type="number" id="monto" name="monto" step="0.01" min="0.01" required />
+          </div>
+
+          <div class="field-group">
+            <label for="fecha">FECHA</label>
+            <input type="date" id="fecha" name="fecha" required />
+          </div>
+
+          <div class="field-group">
+            <label for="categoria">CATEGORÍA</label>
+            <select id="categoria" name="categoria" required>
+              <option value="" disabled selected>Seleccione...</option>
+              <option value="Alimentación">Alimentación</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Servicios">Servicios</option>
+              <option value="Ocio">Ocio</option>
+              <option value="Educación">Educación</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="descripcion">DESCRIPCIÓN</label>
+            <input type="text" id="descripcion" name="descripcion" maxlength="100" required />
+          </div>
+
+          <div id="mensaje-error" class="alert-error" role="alert" hidden></div>
+
+          <div class="form-actions">
+            <button type="submit" id="btn-guardar-gasto" class="btn-gold">GUARDAR GASTO</button>
+            <button type="button" id="btn-cancelar-edicion" class="btn-secondary" hidden>CANCELAR</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Vista 2: Ver Gastos (Historial Activo) -->
+      <div id="panel-ver" role="tabpanel" hidden>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Categoría</th>
+                <th scope="col">Descripción</th>
+                <th scope="col">Monto</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="lista-gastos"></tbody>
+          </table>
+        </div>
+        <p id="estado-vacio" class="empty-state" hidden>No tenés gastos activos registrados.</p>
+      </div>
+
+      <!-- Vista 3: Consultar Gastos (Resumen Total Gastado + Filtro por Categoría) -->
+      <div id="panel-consultar" role="tabpanel" hidden>
+        <div class="consulta-box">
+          <span class="kpi-titulo">TOTAL GASTADO (REGISTROS ACTIVOS)</span>
+          <p id="total-gastado" class="kpi-valor" aria-live="polite">$0.00</p>
+        </div>
+
+        <div class="field-group" style="margin-top: 1.25rem;">
+          <label for="filtro-categoria">FILTRAR POR CATEGORÍA</label>
+          <select id="filtro-categoria">
+            <option value="TODAS">Todas las categorías</option>
+            <option value="Alimentación">Alimentación</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Servicios">Servicios</option>
+            <option value="Ocio">Ocio</option>
+            <option value="Educación">Educación</option>
+            <option value="Otros">Otros</option>
+          </select>
+        </div>
+
+        <div id="detalle-consulta" class="consulta-resumen"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de Confirmación para Baja Lógica -->
+  <dialog id="modal-confirmar-baja" aria-labelledby="modal-titulo">
+    <div class="modal-contenido">
+      <h3 id="modal-titulo">Confirmar Eliminación</h3>
+      <p>¿Estás seguro de que querés eliminar este gasto? El registro pasará a estado inactivo.</p>
+      <div class="modal-acciones">
+        <button type="button" id="btn-confirmar-eliminar" class="btn-danger">Sí, eliminar</button>
+        <button type="button" id="btn-cancelar-eliminar" class="btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/gastos.js"></script>
+</body>
+</html>

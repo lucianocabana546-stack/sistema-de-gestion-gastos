@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sistema de Gestión de Gastos - Acceso y Registro" />
+  <title>Sistema de Gestión de Gastos | SGG</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="bg-overlay"></div>
+
+  <!-- Barra superior -->
+  <header class="top-header">
+    <div class="brand-mark">
+      <span class="diamond">◆</span> SGG
+    </div>
+    <button type="button" id="btn-tema" class="theme-switch" aria-label="Alternar modo día o noche">
+      <span class="switch-knob"></span>
+      <span class="switch-icon" aria-hidden="true">☾</span>
+    </button>
+  </header>
+
+  <main class="auth-main">
+    <!-- Encabezado principal solo visible en Login -->
+    <div id="hero-title" class="hero-header">
+      <div class="divider-ornament">
+        <span></span><span class="diamond">◆</span><span></span>
+      </div>
+      <h1>SISTEMA DE GESTIÓN DE GASTOS</h1>
+    </div>
+
+    <!-- Tarjeta de Iniciar Sesión -->
+    <section id="vista-login" class="auth-box" aria-labelledby="titulo-login">
+      <h2 id="titulo-login" class="serif-title">Iniciar Sesión</h2>
+      <p class="subtitle">Ingresa tus credenciales de acceso</p>
+
+      <form id="form-login" novalidate>
+        <div class="field-group">
+          <label for="login-email">CORREO ELECTRÓNICO</label>
+          <input type="email" id="login-email" placeholder="correo@ejemplo.com" required />
+        </div>
+
+        <div class="field-group">
+          <label for="login-pass">CONTRASEÑA</label>
+          <div class="password-wrapper">
+            <input type="password" id="login-pass" placeholder="••••••••" required />
+            <button type="button" class="toggle-pass" data-target="login-pass" aria-label="Mostrar u ocultar contraseña">
+              👁
+            </button>
+          </div>
+        </div>
+
+        <div id="auth-error" class="alert-error" role="alert" hidden></div>
+
+        <button type="submit" class="btn-gold">INICIAR SESIÓN</button>
+      </form>
+
+      <div class="auth-links">
+        <p>¿No tienes cuenta? <button type="button" id="ir-registro" class="link-btn">Regístrate aquí</button></p>
+        <p><button type="button" id="ir-recuperar" class="link-btn">¿Olvidaste tu contraseña?</button></p>
+      </div>
+    </section>
+
+    <!-- Tarjeta de Crear Cuenta (Diseño Ejecutivo Compacto) -->
+    <section id="vista-registro" class="auth-box auth-box-register" aria-labelledby="titulo-registro" hidden>
+      <div class="register-badge">NUEVO PERFIL FINANCIERO</div>
+      <h2 id="titulo-registro" class="serif-title">Crear Cuenta</h2>
+      <p class="subtitle">Completá tus datos para habilitar tu panel personal</p>
+
+      <form id="form-registro" novalidate>
+        <!-- Fila 1: Nombre y Apellido en dos columnas -->
+        <div class="form-row-2">
+          <div class="field-group">
+            <label for="reg-nombre">NOMBRE/S</label>
+            <input type="text" id="reg-nombre" autocomplete="given-name" required />
+          </div>
+
+          <div class="field-group">
+            <label for="reg-apellido">APELLIDO/S</label>
+            <input type="text" id="reg-apellido" autocomplete="family-name" required />
+          </div>
+        </div>
+
+        <!-- Fila 2: Fecha de Nacimiento y Correo en dos columnas -->
+        <div class="form-row-2">
+          <div class="field-group">
+            <label for="reg-nacimiento">FECHA DE NACIMIENTO</label>
+            <input type="date" id="reg-nacimiento" required />
+          </div>
+
+          <div class="field-group">
+            <label for="reg-email">CORREO ELECTRÓNICO</label>
+            <input type="email" id="reg-email" placeholder="usuario@dominio.com" autocomplete="email" required />
+          </div>
+        </div>
+
+        <!-- Fila 3: Contraseña y Confirmación -->
+        <div class="form-row-2">
+          <div class="field-group">
+            <label for="reg-pass">CONTRASEÑA</label>
+            <div class="password-wrapper">
+              <input type="password" id="reg-pass" placeholder="••••••••" autocomplete="new-password" required />
+              <button type="button" class="toggle-pass" data-target="reg-pass" aria-label="Mostrar u ocultar contraseña">
+                👁
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="reg-pass-confirm">REPETIR CONTRASEÑA</label>
+            <div class="password-wrapper">
+              <input type="password" id="reg-pass-confirm" placeholder="••••••••" autocomplete="new-password" required />
+              <button type="button" class="toggle-pass" data-target="reg-pass-confirm" aria-label="Mostrar u ocultar contraseña">
+                👁
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Indicadores compactos tipo etiquetas (chips) -->
+        <div class="security-box">
+          <span class="security-label">REQUISITOS DE SEGURIDAD:</span>
+          <ul class="pass-rules-grid" id="pass-rules">
+            <li id="rule-len"><span class="rule-icon">ⓧ</span> 8+ caracteres</li>
+            <li id="rule-upper"><span class="rule-icon">ⓧ</span> 1 Mayúscula</li>
+            <li id="rule-lower"><span class="rule-icon">ⓧ</span> 1 Minúscula</li>
+            <li id="rule-num"><span class="rule-icon">ⓧ</span> 1 Número</li>
+            <li id="rule-sym"><span class="rule-icon">ⓧ</span> 1 Símbolo</li>
+          </ul>
+        </div>
+
+        <div id="reg-error" class="alert-error" role="alert" hidden></div>
+
+        <button type="submit" id="btn-registrar" class="btn-gold">CREAR MI CUENTA</button>
+      </form>
+
+      <div class="auth-links">
+        <p>¿Ya tenés una cuenta activa? <button type="button" id="ir-login" class="link-btn">Iniciá sesión acá</button></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>
