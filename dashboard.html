@@ -161,6 +161,16 @@
           </div>
         </div>
       </div>
+
+      <!-- Respaldo y restauración en la nube (Supabase Storage) -->
+      <div class="consulta-box" style="margin-top: 1.5rem;">
+        <span class="kpi-titulo">RESPALDO EN LA NUBE (SUPABASE)</span>
+        <div class="form-actions" style="margin-top: 0.75rem;">
+          <button type="button" id="btn-respaldar" class="btn-secondary">SUBIR RESPALDO</button>
+          <button type="button" id="btn-restaurar" class="btn-secondary">RESTAURAR DESDE LA NUBE</button>
+        </div>
+        <p id="estado-sync" class="consulta-resumen" style="margin-top: 0.75rem;" aria-live="polite"></p>
+      </div>
     </section>
   </main>
 
@@ -178,9 +188,11 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
-  <script src="js/db.js"></script>
-  <script src="js/reportes.js"></script>
-  <script src="js/comprobantes.js?v=2"></script>
-  <script src="js/gastos.js?v=2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/sync.js?v=3"></script>
+  <script src="js/db.js?v=3"></script>
+  <script src="js/reportes.js?v=3"></script>
+  <script src="js/comprobantes.js?v=3"></script>
+  <script src="js/gastos.js?v=3"></script>
 </body>
 </html>

@@ -1,26 +1,5 @@
 (() => {
-  const STORAGE_SESION_KEY = 'sesion_activa_sgg';
   const STORAGE_TEMA_KEY = 'tema_sgg';
-
-  /* ---------- Sesión (el login se reemplaza por Supabase más adelante) ---------- */
-  const sesionRaw = localStorage.getItem(STORAGE_SESION_KEY) || sessionStorage.getItem(STORAGE_SESION_KEY);
-  if (!sesionRaw) {
-    window.location.replace('index.html');
-    return;
-  }
-
-  let usuarioActivo;
-  try {
-    const parsed = JSON.parse(sesionRaw);
-    usuarioActivo = typeof parsed === 'string' ? parsed : parsed.email;
-  } catch {
-    usuarioActivo = sesionRaw;
-  }
-
-  if (!usuarioActivo) {
-    window.location.replace('index.html');
-    return;
-  }
 
   /* ---------- Elementos ---------- */
   const formGasto = document.getElementById('form-gasto');
@@ -42,33 +21,110 @@
   const modalBaja = document.getElementById('modal-confirmar-baja');
   const btnConfirmarEliminar = document.getElementById('btn-confirmar-eliminar');
   const btnCancelarEliminar = document.getElementById('btn-cancelar-eliminar');
+  const btnRespaldar = document.getElementById('btn-respaldar');
+  const btnRestaurar = document.getElementById('btn-restaurar');
+  const estadoSync = document.getElementById('estado-sync');
 
   const tabIngresar = document.getElementById('tab-ingresar');
   const tabVer = document.getElementById('tab-ver');
   const tabConsultar = document.getElementById('tab-consultar');
+  const tabReportes = document.getElementById('tab-reportes');
   const panelIngresar = document.getElementById('panel-ingresar');
   const panelVer = document.getElementById('panel-ver');
   const panelConsultar = document.getElementById('panel-consultar');
-  const tabReportes = document.getElementById('tab-reportes');
   const panelReportes = document.getElementById('panel-reportes');
 
+  let usuarioActivo = null; // email
+  let usuarioId = null;     // id de Supabase: nombre del .sqlite local y carpeta en la nube
   let idPendienteBaja = null;
   let baseLista = false;
+  let temporizadorRespaldo = null;
 
-  document.getElementById('usuario-activo-label').textContent = usuarioActivo;
   aplicarTemaGuardado();
-  iniciarBaseDeDatos();
+  iniciarAplicacion();
 
-  async function iniciarBaseDeDatos() {
+  /* ---------- Arranque: sesión + base local + restauración offline-first ---------- */
+  async function iniciarAplicacion() {
     try {
-      await DB.init(usuarioActivo);
+      const usuario = await Nube.usuarioActual();
+      if (!usuario) {
+        window.location.replace('index.html');
+        return;
+      }
+      usuarioActivo = usuario.email;
+      usuarioId = usuario.id;
+      document.getElementById('usuario-activo-label').textContent = usuarioActivo;
+
+      const info = await DB.init(usuarioId);
       baseLista = true;
+
+      // Dispositivo nuevo (no había .sqlite en OPFS): se baja el respaldo de la nube.
+      if (info.baseNueva) {
+        await restaurarDesdeNube(false);
+      }
       renderizarTodo();
     } catch (err) {
       console.error(err);
-      mostrarError('No se pudo abrir la base de datos: ' + err.message);
+      mostrarError('No se pudo iniciar la aplicación: ' + err.message);
     }
   }
+
+  /* ---------- Respaldo y restauración (Supabase Storage) ---------- */
+  function mostrarEstadoSync(texto) {
+    estadoSync.textContent = texto;
+  }
+
+  async function respaldarEnNube() {
+    if (!baseLista) return;
+    mostrarEstadoSync('Subiendo respaldo a la nube...');
+    try {
+      await Nube.subirRespaldo(usuarioId, DB.exportarBytes());
+      mostrarEstadoSync(`Respaldo en la nube actualizado: ${new Date().toLocaleString('es-AR')}.`);
+    } catch (err) {
+      console.error(err);
+      mostrarEstadoSync(`No se pudo respaldar en la nube (${err.message}). Tus datos siguen guardados en este dispositivo.`);
+    }
+  }
+
+  // Respaldo automático: espera un instante por si se hacen varios cambios seguidos.
+  function programarRespaldo() {
+    clearTimeout(temporizadorRespaldo);
+    temporizadorRespaldo = setTimeout(respaldarEnNube, 1500);
+  }
+
+  async function restaurarDesdeNube(pedirConfirmacion) {
+    if (pedirConfirmacion) {
+      const seguir = window.confirm(
+        'Esto reemplaza los datos de este dispositivo por el último respaldo de la nube. ¿Continuar?'
+      );
+      if (!seguir) return false;
+    }
+    mostrarEstadoSync('Buscando respaldo en la nube...');
+    try {
+      const bytes = await Nube.descargarRespaldo(usuarioId);
+      if (!bytes) {
+        mostrarEstadoSync('Todavía no hay un respaldo en la nube para tu cuenta.');
+        return false;
+      }
+      await DB.reemplazarConBytes(bytes);
+      mostrarEstadoSync('Base de datos restaurada desde la nube.');
+      return true;
+    } catch (err) {
+      console.error(err);
+      mostrarEstadoSync(`No se pudo restaurar desde la nube (${err.message}).`);
+      return false;
+    }
+  }
+
+  btnRespaldar.addEventListener('click', respaldarEnNube);
+
+  btnRestaurar.addEventListener('click', async () => {
+    const restaurado = await restaurarDesdeNube(true);
+    if (restaurado) {
+      resetearFormulario();
+      renderizarTodo();
+    }
+  });
 
   /* ---------- Pestañas ---------- */
   function cambiarPestana(pestanaActiva) {
@@ -110,10 +166,11 @@
     localStorage.setItem(STORAGE_TEMA_KEY, esOscuro ? 'dark' : 'light');
   });
 
-  document.getElementById('btn-cerrar-sesion').addEventListener('click', () => {
+  document.getElementById('btn-cerrar-sesion').addEventListener('click', async () => {
+    clearTimeout(temporizadorRespaldo);
+    await respaldarEnNube();
     DB.cerrar();
-    localStorage.removeItem(STORAGE_SESION_KEY);
-    sessionStorage.removeItem(STORAGE_SESION_KEY);
+    await Nube.cerrarSesion();
     window.location.replace('index.html');
   });
 
@@ -211,6 +268,7 @@
     resetearFormulario();
     renderizarTodo();
     cambiarPestana(tabVer);
+    programarRespaldo();
   });
 
   function cargarEnFormularioParaEditar(id) {
@@ -262,6 +320,7 @@
     }
     if (Number(inputId.value) === id) resetearFormulario();
     renderizarTodo();
+    programarRespaldo();
   }
 
   btnConfirmarEliminar.addEventListener('click', async () => {
@@ -325,6 +384,7 @@
           <button type="button" class="btn-eliminar" data-id="${m.id}" aria-label="Eliminar ${escaparHTML(m.descripcion)}">Eliminar</button>
         </td>
       `;
+
       const celdaComprobante = tr.querySelector('.celda-comprobante');
       if (m.url_comprobante && /^https:\/\//i.test(m.url_comprobante)) {
         const enlace = document.createElement('a');
