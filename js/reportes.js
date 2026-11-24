@@ -15,7 +15,21 @@ const Reportes = (() => {
     return `$${Number(n).toFixed(2)}`;
   }
 
-  function renderizarDona() {
+  // Colores tomados de elementos reales de la página: así los gráficos se leen
+  // con el modo noche del sitio y también con el modo oscuro forzado del navegador.
+  function coloresDePagina() {
+    const titulo = document.querySelector('#panel-reportes .kpi-titulo');
+    const caja = document.querySelector('#panel-reportes .consulta-box');
+    const estiloTitulo = getComputedStyle(titulo);
+    const estiloCaja = getComputedStyle(caja);
+    return {
+      texto: estiloTitulo.color,
+      linea: estiloCaja.borderTopColor,
+      fondo: estiloCaja.backgroundColor
+    };
+  }
+
+  function renderizarDona(colorBorde) {
     // SELECT categoria, SUM(monto) ... WHERE egreso AND activo = 1 GROUP BY categoria
     const filas = DB.egresosPorCategoria();
     const canvas = document.getElementById('grafico-dona');
@@ -40,7 +54,7 @@ const Reportes = (() => {
         datasets: [{
           data: filas.map((f) => f.total),
           backgroundColor: filas.map((_, i) => PALETA[i % PALETA.length]),
-          borderColor: variableCSS('--surface', '#ffffff'),
+          borderColor: colorBorde,
           borderWidth: 2
         }]
       },
@@ -104,9 +118,10 @@ const Reportes = (() => {
       console.error('Chart.js no está cargado. Revisá el <script> de Chart.js en dashboard.html.');
       return;
     }
-    Chart.defaults.color = variableCSS('--text-main', '#1e1b4b');
-    Chart.defaults.borderColor = variableCSS('--border', '#ddd6fe');
-    renderizarDona();
+    const colores = coloresDePagina();
+    Chart.defaults.color = colores.texto;
+    Chart.defaults.borderColor = colores.linea;
+    renderizarDona(colores.fondo);
     renderizarBarras();
   }
 
