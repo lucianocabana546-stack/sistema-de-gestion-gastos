@@ -28,23 +28,33 @@
     <section class="auth-box auth-box-wide" aria-labelledby="titulo-gastos">
       <h1 id="titulo-gastos" class="serif-title">Gestión de Gastos</h1>
 
-      <!-- Navegación de pestañas del módulo -->
       <div class="mode-tabs" role="tablist" aria-label="Secciones de gestión de gastos">
         <button type="button" id="tab-ingresar" class="mode-tab active" role="tab" aria-selected="true">
-          INGRESAR GASTO
+          INGRESAR MOVIMIENTO
         </button>
         <button type="button" id="tab-ver" class="mode-tab" role="tab" aria-selected="false">
-          VER GASTOS
+          VER MOVIMIENTOS
         </button>
         <button type="button" id="tab-consultar" class="mode-tab" role="tab" aria-selected="false">
-          CONSULTAR GASTOS
+          CONSULTAR BALANCE
+        </button>
+        <button type="button" id="tab-reportes" class="mode-tab" role="tab" aria-selected="false">
+          VER REPORTES
         </button>
       </div>
 
-      <!-- Vista 1: Ingresar / Editar Gasto -->
+      <!-- Vista 1: Ingresar / Editar movimiento -->
       <div id="panel-ingresar" role="tabpanel">
         <form id="form-gasto" novalidate>
           <input type="hidden" id="gasto-id" value="" />
+
+          <div class="field-group">
+            <label for="tipo">TIPO DE MOVIMIENTO</label>
+            <select id="tipo" name="tipo" required>
+              <option value="egreso" selected>Egreso (gasto)</option>
+              <option value="ingreso">Ingreso</option>
+            </select>
+          </div>
 
           <div class="field-group">
             <label for="monto">MONTO</label>
@@ -65,6 +75,7 @@
               <option value="Servicios">Servicios</option>
               <option value="Ocio">Ocio</option>
               <option value="Educación">Educación</option>
+              <option value="Sueldo">Sueldo</option>
               <option value="Otros">Otros</option>
             </select>
           </div>
@@ -74,39 +85,46 @@
             <input type="text" id="descripcion" name="descripcion" maxlength="100" required />
           </div>
 
+          <div class="field-group">
+            <label for="comprobante">COMPROBANTE (OPCIONAL)</label>
+            <input type="file" id="comprobante" name="comprobante" accept="image/*" />
+          </div>
+
           <div id="mensaje-error" class="alert-error" role="alert" hidden></div>
 
           <div class="form-actions">
-            <button type="submit" id="btn-guardar-gasto" class="btn-gold">GUARDAR GASTO</button>
+            <button type="submit" id="btn-guardar-gasto" class="btn-gold">GUARDAR MOVIMIENTO</button>
             <button type="button" id="btn-cancelar-edicion" class="btn-secondary" hidden>CANCELAR</button>
           </div>
         </form>
       </div>
 
-      <!-- Vista 2: Ver Gastos (Historial Activo) -->
+      <!-- Vista 2: Ver movimientos activos -->
       <div id="panel-ver" role="tabpanel" hidden>
         <div class="table-responsive">
           <table>
             <thead>
               <tr>
                 <th scope="col">Fecha</th>
+                <th scope="col">Tipo</th>
                 <th scope="col">Categoría</th>
                 <th scope="col">Descripción</th>
                 <th scope="col">Monto</th>
+                <th scope="col">Comprobante</th>
                 <th scope="col">Acciones</th>
               </tr>
             </thead>
             <tbody id="lista-gastos"></tbody>
           </table>
         </div>
-        <p id="estado-vacio" class="empty-state" hidden>No tenés gastos activos registrados.</p>
+        <p id="estado-vacio" class="empty-state" hidden>No tenés movimientos activos registrados.</p>
       </div>
 
-      <!-- Vista 3: Consultar Gastos (Resumen Total Gastado + Filtro por Categoría) -->
+      <!-- Vista 3: Balance general y filtro por categoría -->
       <div id="panel-consultar" role="tabpanel" hidden>
         <div class="consulta-box">
-          <span class="kpi-titulo">TOTAL GASTADO (REGISTROS ACTIVOS)</span>
-          <p id="total-gastado" class="kpi-valor" aria-live="polite">$0.00</p>
+          <span class="kpi-titulo">BALANCE GENERAL (INGRESOS − EGRESOS)</span>
+          <p id="balance-total" class="kpi-valor" aria-live="polite">$0.00</p>
         </div>
 
         <div class="field-group" style="margin-top: 1.25rem;">
@@ -118,20 +136,49 @@
             <option value="Servicios">Servicios</option>
             <option value="Ocio">Ocio</option>
             <option value="Educación">Educación</option>
+            <option value="Sueldo">Sueldo</option>
             <option value="Otros">Otros</option>
           </select>
         </div>
 
         <div id="detalle-consulta" class="consulta-resumen"></div>
       </div>
+
+      <!-- Vista 4: Reportes (Chart.js alimentado por consultas SQL) -->
+      <div id="panel-reportes" role="tabpanel" hidden>
+        <div class="consulta-box" style="margin-bottom: 1.25rem;">
+          <span class="kpi-titulo">EGRESOS POR CATEGORÍA</span>
+          <div style="position: relative; height: 300px; margin-top: 0.75rem;">
+            <canvas id="grafico-dona" aria-label="Gráfico de dona de egresos por categoría" role="img"></canvas>
+          </div>
+          <p id="dona-vacio" class="empty-state" hidden>Todavía no hay egresos para graficar.</p>
+        </div>
+
+        <div class="consulta-box">
+          <span class="kpi-titulo">INGRESOS VS. EGRESOS</span>
+          <div style="position: relative; height: 280px; margin-top: 0.75rem;">
+            <canvas id="grafico-barras" aria-label="Gráfico de barras de ingresos contra egresos" role="img"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Respaldo y restauración en la nube (Supabase Storage) -->
+      <div class="consulta-box" style="margin-top: 1.5rem;">
+        <span class="kpi-titulo">RESPALDO EN LA NUBE (SUPABASE)</span>
+        <div class="form-actions" style="margin-top: 0.75rem;">
+          <button type="button" id="btn-respaldar" class="btn-secondary">SUBIR RESPALDO</button>
+          <button type="button" id="btn-restaurar" class="btn-secondary">RESTAURAR DESDE LA NUBE</button>
+        </div>
+        <p id="estado-sync" class="consulta-resumen" style="margin-top: 0.75rem;" aria-live="polite"></p>
+      </div>
     </section>
   </main>
 
-  <!-- Modal de Confirmación para Baja Lógica -->
+  <!-- Modal de confirmación para baja lógica -->
   <dialog id="modal-confirmar-baja" aria-labelledby="modal-titulo">
     <div class="modal-contenido">
-      <h3 id="modal-titulo">Confirmar Eliminación</h3>
-      <p>¿Estás seguro de que querés eliminar este gasto? El registro pasará a estado inactivo.</p>
+      <h3 id="modal-titulo">Confirmar eliminación</h3>
+      <p>¿Estás seguro de que querés eliminar este movimiento? El registro pasará a estado inactivo.</p>
       <div class="modal-acciones">
         <button type="button" id="btn-confirmar-eliminar" class="btn-danger">Sí, eliminar</button>
         <button type="button" id="btn-cancelar-eliminar" class="btn-secondary">Cancelar</button>
@@ -139,6 +186,13 @@
     </div>
   </dialog>
 
-  <script src="js/gastos.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/sync.js?v=3"></script>
+  <script src="js/db.js?v=3"></script>
+  <script src="js/reportes.js?v=3"></script>
+  <script src="js/comprobantes.js?v=3"></script>
+  <script src="js/gastos.js?v=3"></script>
 </body>
 </html>

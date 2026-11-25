@@ -1,12 +1,5 @@
 (() => {
-  const STORAGE_USUARIOS_KEY = 'usuarios_sgg';
-  const STORAGE_SESION_KEY = 'sesion_activa_sgg';
   const STORAGE_TEMA_KEY = 'tema_sgg';
-
-  if (localStorage.getItem(STORAGE_SESION_KEY)) {
-    window.location.replace('dashboard.html');
-    return;
-  }
 
   if (localStorage.getItem(STORAGE_TEMA_KEY) === 'dark') {
     document.body.classList.add('dark-mode');
@@ -16,6 +9,13 @@
     const esOscuro = document.body.classList.toggle('dark-mode');
     localStorage.setItem(STORAGE_TEMA_KEY, esOscuro ? 'dark' : 'light');
   });
+
+  // Si ya hay una sesión de Supabase activa, ir directo al dashboard.
+  Nube.usuarioActual()
+    .then((usuario) => {
+      if (usuario) window.location.replace('dashboard.html');
+    })
+    .catch((err) => console.warn(err.message));
 
   const vistaLogin = document.getElementById('vista-login');
   const vistaRegistro = document.getElementById('vista-registro');
@@ -34,7 +34,7 @@
   });
 
   document.getElementById('ir-recuperar').addEventListener('click', () => {
-    alert('Para restablecer tu contraseña en el entorno local, creá una nueva cuenta o revisá los usuarios registrados.');
+    alert('La recuperación de contraseña no está habilitada en esta versión del sistema.');
   });
 
   document.querySelectorAll('.toggle-pass').forEach((btn) => {
@@ -74,7 +74,21 @@
     return edad;
   }
 
-  document.getElementById('form-registro').addEventListener('submit', (e) => {
+  function traducirError(err) {
+    const msg = (err && err.message) || '';
+    if (/invalid login credentials/i.test(msg)) return 'Correo electrónico o contraseña incorrectos.';
+    if (/email not confirmed/i.test(msg)) return 'Tenés que confirmar tu correo antes de iniciar sesión.';
+    if (/already registered/i.test(msg)) return 'Ese correo electrónico ya está registrado.';
+    if (/failed to fetch|network/i.test(msg)) return 'No hay conexión con el servidor. Revisá tu internet.';
+    return msg || 'Ocurrió un error inesperado.';
+  }
+
+  function mostrar(errEl, texto) {
+    errEl.textContent = texto;
+    errEl.hidden = false;
+  }
+
+  document.getElementById('form-registro').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('reg-error');
     errEl.hidden = true;
@@ -87,45 +101,44 @@
     const passConfirm = document.getElementById('reg-pass-confirm').value;
 
     if (!nombre || !apellido || !nacimiento || !email) {
-      errEl.textContent = 'Todos los campos son obligatorios.';
-      errEl.hidden = false;
+      mostrar(errEl, 'Todos los campos son obligatorios.');
       return;
     }
-
     if (calcularEdad(nacimiento) < 18) {
-      errEl.textContent = 'Tenés que ser mayor de 18 años para registrarte.';
-      errEl.hidden = false;
+      mostrar(errEl, 'Tenés que ser mayor de 18 años para registrarte.');
       document.getElementById('reg-nacimiento').focus();
       return;
     }
-
-    const passValida = Object.values(reglas).every((r) => r.test(pass));
-    if (!passValida) {
-      errEl.textContent = 'La contraseña no cumple con todos los requisitos de seguridad.';
-      errEl.hidden = false;
+    if (!Object.values(reglas).every((r) => r.test(pass))) {
+      mostrar(errEl, 'La contraseña no cumple con todos los requisitos de seguridad.');
       return;
     }
-
     if (pass !== passConfirm) {
-      errEl.textContent = 'Las contraseñas no coinciden.';
-      errEl.hidden = false;
+      mostrar(errEl, 'Las contraseñas no coinciden.');
       return;
     }
 
-    const usuarios = JSON.parse(localStorage.getItem(STORAGE_USUARIOS_KEY)) || [];
-    if (usuarios.some((u) => u.email === email)) {
-      errEl.textContent = 'Ese correo electrónico ya está registrado.';
-      errEl.hidden = false;
-      return;
+    const boton = document.getElementById('btn-registrar');
+    boton.disabled = true;
+    try {
+      const { data, error } = await Nube.registrar({ email, password: pass, nombre, apellido, nacimiento });
+      if (error) {
+        mostrar(errEl, traducirError(error));
+        return;
+      }
+      if (data.session) {
+        window.location.replace('dashboard.html');
+      } else {
+        mostrar(errEl, 'Cuenta creada. Confirmá tu correo electrónico y después iniciá sesión.');
+      }
+    } catch (err) {
+      mostrar(errEl, traducirError(err));
+    } finally {
+      boton.disabled = false;
     }
-
-    usuarios.push({ nombre, apellido, nacimiento, email, pass });
-    localStorage.setItem(STORAGE_USUARIOS_KEY, JSON.stringify(usuarios));
-    localStorage.setItem(STORAGE_SESION_KEY, JSON.stringify({ nombre, apellido, email }));
-    window.location.replace('dashboard.html');
   });
 
-  document.getElementById('form-login').addEventListener('submit', (e) => {
+  document.getElementById('form-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('auth-error');
     errEl.hidden = true;
@@ -133,19 +146,24 @@
     const email = document.getElementById('login-email').value.trim().toLowerCase();
     const pass = document.getElementById('login-pass').value;
 
-    const usuarios = JSON.parse(localStorage.getItem(STORAGE_USUARIOS_KEY)) || [];
-    const usuario = usuarios.find((u) => u.email === email && u.pass === pass);
-
-    if (!usuario) {
-      errEl.textContent = 'Correo electrónico o contraseña incorrectos.';
-      errEl.hidden = false;
+    if (!email || !pass) {
+      mostrar(errEl, 'Ingresá tu correo electrónico y tu contraseña.');
       return;
     }
 
-    localStorage.setItem(
-      STORAGE_SESION_KEY,
-      JSON.stringify({ nombre: usuario.nombre, apellido: usuario.apellido, email: usuario.email })
-    );
-    window.location.replace('dashboard.html');
+    const boton = e.target.querySelector('button[type="submit"]');
+    boton.disabled = true;
+    try {
+      const { error } = await Nube.iniciarSesion(email, pass);
+      if (error) {
+        mostrar(errEl, traducirError(error));
+        return;
+      }
+      window.location.replace('dashboard.html');
+    } catch (err) {
+      mostrar(errEl, traducirError(err));
+    } finally {
+      boton.disabled = false;
+    }
   });
 })();

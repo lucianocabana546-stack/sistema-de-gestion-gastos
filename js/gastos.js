@@ -1,63 +1,138 @@
 (() => {
-  const STORAGE_GASTOS_KEY = 'gastos_sgg';
-  const STORAGE_SESION_KEY = 'sesion_activa_sgg';
   const STORAGE_TEMA_KEY = 'tema_sgg';
 
-  const sesionRaw = localStorage.getItem(STORAGE_SESION_KEY) || sessionStorage.getItem(STORAGE_SESION_KEY);
-  if (!sesionRaw) {
-    window.location.replace('index.html');
-    return;
-  }
-
-  let usuarioActivo;
-  try {
-    const parsed = JSON.parse(sesionRaw);
-    usuarioActivo = typeof parsed === 'string' ? parsed : parsed.email;
-  } catch {
-    usuarioActivo = sesionRaw;
-  }
-
-  if (!usuarioActivo) {
-    window.location.replace('index.html');
-    return;
-  }
-
+  /* ---------- Elementos ---------- */
   const formGasto = document.getElementById('form-gasto');
   const inputId = document.getElementById('gasto-id');
+  const selectTipo = document.getElementById('tipo');
   const inputMonto = document.getElementById('monto');
   const inputFecha = document.getElementById('fecha');
   const selectCategoria = document.getElementById('categoria');
   const inputDescripcion = document.getElementById('descripcion');
+  const inputComprobante = document.getElementById('comprobante');
   const mensajeError = document.getElementById('mensaje-error');
   const btnGuardar = document.getElementById('btn-guardar-gasto');
   const btnCancelarEdicion = document.getElementById('btn-cancelar-edicion');
   const listaGastos = document.getElementById('lista-gastos');
   const estadoVacio = document.getElementById('estado-vacio');
-  const totalGastadoEl = document.getElementById('total-gastado');
+  const balanceEl = document.getElementById('balance-total');
   const filtroCategoria = document.getElementById('filtro-categoria');
   const detalleConsulta = document.getElementById('detalle-consulta');
   const modalBaja = document.getElementById('modal-confirmar-baja');
   const btnConfirmarEliminar = document.getElementById('btn-confirmar-eliminar');
   const btnCancelarEliminar = document.getElementById('btn-cancelar-eliminar');
+  const btnRespaldar = document.getElementById('btn-respaldar');
+  const btnRestaurar = document.getElementById('btn-restaurar');
+  const estadoSync = document.getElementById('estado-sync');
 
   const tabIngresar = document.getElementById('tab-ingresar');
   const tabVer = document.getElementById('tab-ver');
   const tabConsultar = document.getElementById('tab-consultar');
+  const tabReportes = document.getElementById('tab-reportes');
   const panelIngresar = document.getElementById('panel-ingresar');
   const panelVer = document.getElementById('panel-ver');
   const panelConsultar = document.getElementById('panel-consultar');
+  const panelReportes = document.getElementById('panel-reportes');
 
+  let usuarioActivo = null; // email
+  let usuarioId = null;     // id de Supabase: nombre del .sqlite local y carpeta en la nube
   let idPendienteBaja = null;
+  let baseLista = false;
+  let temporizadorRespaldo = null;
 
-  document.getElementById('usuario-activo-label').textContent = usuarioActivo;
   aplicarTemaGuardado();
-  renderizarTodo();
+  iniciarAplicacion();
 
+  /* ---------- Arranque: sesión + base local + restauración offline-first ---------- */
+  async function iniciarAplicacion() {
+    try {
+      const usuario = await Nube.usuarioActual();
+      if (!usuario) {
+        window.location.replace('index.html');
+        return;
+      }
+      usuarioActivo = usuario.email;
+      usuarioId = usuario.id;
+      document.getElementById('usuario-activo-label').textContent = usuarioActivo;
+
+      const info = await DB.init(usuarioId);
+      baseLista = true;
+
+      // Dispositivo nuevo (no había .sqlite en OPFS): se baja el respaldo de la nube.
+      if (info.baseNueva) {
+        await restaurarDesdeNube(false);
+      }
+      renderizarTodo();
+    } catch (err) {
+      console.error(err);
+      mostrarError('No se pudo iniciar la aplicación: ' + err.message);
+    }
+  }
+
+  /* ---------- Respaldo y restauración (Supabase Storage) ---------- */
+  function mostrarEstadoSync(texto) {
+    estadoSync.textContent = texto;
+  }
+
+  async function respaldarEnNube() {
+    if (!baseLista) return;
+    mostrarEstadoSync('Subiendo respaldo a la nube...');
+    try {
+      await Nube.subirRespaldo(usuarioId, DB.exportarBytes());
+      mostrarEstadoSync(`Respaldo en la nube actualizado: ${new Date().toLocaleString('es-AR')}.`);
+    } catch (err) {
+      console.error(err);
+      mostrarEstadoSync(`No se pudo respaldar en la nube (${err.message}). Tus datos siguen guardados en este dispositivo.`);
+    }
+  }
+
+  // Respaldo automático: espera un instante por si se hacen varios cambios seguidos.
+  function programarRespaldo() {
+    clearTimeout(temporizadorRespaldo);
+    temporizadorRespaldo = setTimeout(respaldarEnNube, 1500);
+  }
+
+  async function restaurarDesdeNube(pedirConfirmacion) {
+    if (pedirConfirmacion) {
+      const seguir = window.confirm(
+        'Esto reemplaza los datos de este dispositivo por el último respaldo de la nube. ¿Continuar?'
+      );
+      if (!seguir) return false;
+    }
+    mostrarEstadoSync('Buscando respaldo en la nube...');
+    try {
+      const bytes = await Nube.descargarRespaldo(usuarioId);
+      if (!bytes) {
+        mostrarEstadoSync('Todavía no hay un respaldo en la nube para tu cuenta.');
+        return false;
+      }
+      await DB.reemplazarConBytes(bytes);
+      mostrarEstadoSync('Base de datos restaurada desde la nube.');
+      return true;
+    } catch (err) {
+      console.error(err);
+      mostrarEstadoSync(`No se pudo restaurar desde la nube (${err.message}).`);
+      return false;
+    }
+  }
+
+  btnRespaldar.addEventListener('click', respaldarEnNube);
+
+  btnRestaurar.addEventListener('click', async () => {
+    const restaurado = await restaurarDesdeNube(true);
+    if (restaurado) {
+      resetearFormulario();
+      renderizarTodo();
+    }
+  });
+
+  /* ---------- Pestañas ---------- */
   function cambiarPestana(pestanaActiva) {
     [
       [tabIngresar, panelIngresar],
       [tabVer, panelVer],
-      [tabConsultar, panelConsultar]
+      [tabConsultar, panelConsultar],
+      [tabReportes, panelReportes]
     ].forEach(([tab, panel]) => {
       const esActiva = tab === pestanaActiva;
       tab.classList.toggle('active', esActiva);
@@ -75,10 +150,15 @@
     renderizarTodo();
     cambiarPestana(tabConsultar);
   });
+  tabReportes.addEventListener('click', () => {
+    if (!baseLista) return;
+    cambiarPestana(tabReportes);
+    Reportes.renderizar();
+  });
 
+  /* ---------- Tema y sesión ---------- */
   function aplicarTemaGuardado() {
-    const tema = localStorage.getItem(STORAGE_TEMA_KEY) || 'light';
-    if (tema === 'dark') document.body.classList.add('dark-mode');
+    if (localStorage.getItem(STORAGE_TEMA_KEY) === 'dark') document.body.classList.add('dark-mode');
   }
 
   document.getElementById('btn-tema').addEventListener('click', () => {
@@ -86,24 +166,15 @@
     localStorage.setItem(STORAGE_TEMA_KEY, esOscuro ? 'dark' : 'light');
   });
 
-  document.getElementById('btn-cerrar-sesion').addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_SESION_KEY);
-    sessionStorage.removeItem(STORAGE_SESION_KEY);
+  document.getElementById('btn-cerrar-sesion').addEventListener('click', async () => {
+    clearTimeout(temporizadorRespaldo);
+    await respaldarEnNube();
+    DB.cerrar();
+    await Nube.cerrarSesion();
     window.location.replace('index.html');
   });
 
-  function obtenerTodosLosGastos() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_GASTOS_KEY)) || [];
-    } catch {
-      return [];
-    }
-  }
-
-  function guardarTodosLosGastos(gastos) {
-    localStorage.setItem(STORAGE_GASTOS_KEY, JSON.stringify(gastos));
-  }
-
+  /* ---------- Mensajes ---------- */
   function mostrarError(texto) {
     mensajeError.textContent = texto;
     mensajeError.hidden = false;
@@ -114,15 +185,27 @@
     mensajeError.hidden = true;
   }
 
-  formGasto.addEventListener('submit', (e) => {
+  /* ---------- Guardar / actualizar ---------- */
+  formGasto.addEventListener('submit', async (e) => {
     e.preventDefault();
     ocultarError();
 
+    if (!baseLista) {
+      mostrarError('La base de datos todavía no está lista. Esperá un momento y reintentá.');
+      return;
+    }
+
+    const tipo = selectTipo.value;
     const monto = parseFloat(inputMonto.value);
     const fecha = inputFecha.value;
     const categoria = selectCategoria.value;
     const descripcion = inputDescripcion.value.trim();
 
+    if (tipo !== 'ingreso' && tipo !== 'egreso') {
+      mostrarError('Seleccioná si el movimiento es un ingreso o un egreso.');
+      selectTipo.focus();
+      return;
+    }
     if (Number.isNaN(monto) || monto <= 0) {
       mostrarError('El monto debe ser un número mayor a cero (no se permiten valores negativos ni 0).');
       inputMonto.focus();
@@ -139,50 +222,68 @@
       return;
     }
     if (!descripcion) {
-      mostrarError('Debe ingresar una descripción para el gasto.');
+      mostrarError('Debe ingresar una descripción para el movimiento.');
       inputDescripcion.focus();
       return;
     }
 
-    const gastos = obtenerTodosLosGastos();
-    const idEdicion = inputId.value;
+    const datos = { tipo_movimiento: tipo, monto, fecha, categoria, descripcion, url_comprobante: null };
 
-    if (idEdicion) {
-      const indice = gastos.findIndex((g) => g.id === idEdicion && g.email_usuario === usuarioActivo);
-      if (indice !== -1) {
-        gastos[indice] = { ...gastos[indice], monto, fecha, categoria, descripcion };
+    // Comprobante opcional: se sube a la API externa y solo se guarda la URL.
+    const archivo = inputComprobante.files[0];
+    let urlSubida = null;
+    if (archivo) {
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = 'SUBIENDO COMPROBANTE...';
+      try {
+        urlSubida = await Comprobantes.subir(archivo);
+      } catch (err) {
+        console.error(err);
+        const seguir = window.confirm(
+          `No se pudo subir el comprobante: ${err.message}\n\n¿Querés guardar el movimiento sin comprobante?`
+        );
+        if (!seguir) return;
+      } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = inputId.value ? 'ACTUALIZAR MOVIMIENTO' : 'GUARDAR MOVIMIENTO';
       }
-    } else {
-      gastos.push({
-        id: crypto.randomUUID ? crypto.randomUUID() : `gasto_${Date.now()}`,
-        email_usuario: usuarioActivo,
-        monto,
-        fecha,
-        categoria,
-        descripcion,
-        estado_activo: true
-      });
     }
 
-    guardarTodosLosGastos(gastos);
+    try {
+      if (inputId.value) {
+        const id = Number(inputId.value);
+        const actual = DB.obtenerPorId(id);
+        datos.url_comprobante = urlSubida || (actual ? actual.url_comprobante : null);
+        await DB.actualizarMovimiento(id, datos);
+      } else {
+        datos.url_comprobante = urlSubida;
+        await DB.insertarMovimiento(datos);
+      }
+    } catch (err) {
+      console.error(err);
+      mostrarError('No se pudo guardar el movimiento: ' + err.message);
+      return;
+    }
+
     resetearFormulario();
     renderizarTodo();
     cambiarPestana(tabVer);
+    programarRespaldo();
   });
 
   function cargarEnFormularioParaEditar(id) {
-    const gastos = obtenerTodosLosGastos();
-    const gasto = gastos.find((g) => g.id === id && g.email_usuario === usuarioActivo && g.estado_activo === true);
-    if (!gasto) return;
+    const mov = DB.obtenerPorId(Number(id));
+    if (!mov) return;
 
     ocultarError();
-    inputId.value = gasto.id;
-    inputMonto.value = gasto.monto;
-    inputFecha.value = gasto.fecha;
-    selectCategoria.value = gasto.categoria;
-    inputDescripcion.value = gasto.descripcion;
+    inputId.value = mov.id;
+    selectTipo.value = mov.tipo_movimiento;
+    inputMonto.value = mov.monto;
+    inputFecha.value = mov.fecha;
+    selectCategoria.value = mov.categoria;
+    inputDescripcion.value = mov.descripcion;
 
-    btnGuardar.textContent = 'ACTUALIZAR GASTO';
+    btnGuardar.textContent = 'ACTUALIZAR MOVIMIENTO';
     btnCancelarEdicion.hidden = false;
     cambiarPestana(tabIngresar);
     inputMonto.focus();
@@ -191,7 +292,7 @@
   function resetearFormulario() {
     formGasto.reset();
     inputId.value = '';
-    btnGuardar.textContent = 'GUARDAR GASTO';
+    btnGuardar.textContent = 'GUARDAR MOVIMIENTO';
     btnCancelarEdicion.hidden = true;
     ocultarError();
   }
@@ -199,31 +300,32 @@
   btnCancelarEdicion.addEventListener('click', resetearFormulario);
   filtroCategoria.addEventListener('change', renderizarTodo);
 
+  /* ---------- Borrado lógico (UPDATE activo = 0) ---------- */
   function solicitarBajaLogica(id) {
-    idPendienteBaja = id;
+    idPendienteBaja = Number(id);
     if (typeof modalBaja.showModal === 'function') {
       modalBaja.showModal();
-    } else if (window.confirm('¿Estás seguro de que querés eliminar este gasto?')) {
-      ejecutarBajaLogica(id);
+    } else if (window.confirm('¿Estás seguro de que querés eliminar este movimiento?')) {
+      ejecutarBajaLogica(idPendienteBaja);
     }
   }
 
-  function ejecutarBajaLogica(id) {
-    const gastos = obtenerTodosLosGastos();
-    const actualizado = gastos.map((gasto) => {
-      if (gasto.id === id && gasto.email_usuario === usuarioActivo) {
-        return { ...gasto, estado_activo: false };
-      }
-      return gasto;
-    });
-    guardarTodosLosGastos(actualizado);
-    if (inputId.value === id) resetearFormulario();
+  async function ejecutarBajaLogica(id) {
+    try {
+      await DB.bajaLogica(id);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo eliminar el movimiento: ' + err.message);
+      return;
+    }
+    if (Number(inputId.value) === id) resetearFormulario();
     renderizarTodo();
+    programarRespaldo();
   }
 
-  btnConfirmarEliminar.addEventListener('click', () => {
-    if (idPendienteBaja) {
-      ejecutarBajaLogica(idPendienteBaja);
+  btnConfirmarEliminar.addEventListener('click', async () => {
+    if (idPendienteBaja !== null) {
+      await ejecutarBajaLogica(idPendienteBaja);
       idPendienteBaja = null;
     }
     modalBaja.close();
@@ -234,47 +336,73 @@
     modalBaja.close();
   });
 
+  /* ---------- Render ---------- */
+  function formatoMoneda(n) {
+    const valor = Number(n);
+    return `${valor < 0 ? '-' : ''}$${Math.abs(valor).toFixed(2)}`;
+  }
+
   function renderizarTodo() {
-    const todos = obtenerTodosLosGastos();
-    const activosUsuario = todos.filter(
-      (g) => g.email_usuario === usuarioActivo && g.estado_activo === true
-    );
+    if (!baseLista) return;
 
-    const totalGlobal = activosUsuario.reduce((acum, item) => acum + Number(item.monto), 0);
-    totalGastadoEl.textContent = `$${totalGlobal.toFixed(2)}`;
+    // Balance general (SQL: SUM + CASE sobre registros activos)
+    balanceEl.textContent = formatoMoneda(DB.balance());
 
-    const catSeleccionada = filtroCategoria.value;
-    const filtrados = catSeleccionada === 'TODAS'
-      ? activosUsuario
-      : activosUsuario.filter((g) => g.categoria === catSeleccionada);
-    const subtotalFiltro = filtrados.reduce((acum, item) => acum + Number(item.monto), 0);
+    // Resumen filtrado por categoría (SQL con parámetros)
+    const categoria = filtroCategoria.value;
+    const resumen = DB.query(
+      `SELECT COUNT(*) AS cantidad,
+              COALESCE(SUM(CASE WHEN tipo_movimiento = 'ingreso' THEN monto ELSE 0 END), 0) AS ingresos,
+              COALESCE(SUM(CASE WHEN tipo_movimiento = 'egreso'  THEN monto ELSE 0 END), 0) AS egresos
+         FROM movimientos
+        WHERE activo = 1 AND (? = 'TODAS' OR categoria = ?)`,
+      [categoria, categoria]
+    )[0];
 
-    detalleConsulta.textContent = catSeleccionada === 'TODAS'
-      ? `Mostrando ${filtrados.length} gasto(s) activo(s) en total.`
-      : `Subtotal en "${catSeleccionada}": $${subtotalFiltro.toFixed(2)} (${filtrados.length} movimiento(s)).`;
+    const alcance = categoria === 'TODAS' ? 'Todas las categorías' : `Categoría "${categoria}"`;
+    detalleConsulta.textContent =
+      `${alcance}: ${resumen.cantidad} movimiento(s). ` +
+      `Ingresos ${formatoMoneda(resumen.ingresos)} / Egresos ${formatoMoneda(resumen.egresos)}.`;
 
+    // Tabla de movimientos activos
+    const movimientos = DB.listarActivos();
     listaGastos.innerHTML = '';
-    estadoVacio.hidden = activosUsuario.length > 0;
+    estadoVacio.hidden = movimientos.length > 0;
 
-    for (const gasto of activosUsuario) {
+    for (const m of movimientos) {
+      const esIngreso = m.tipo_movimiento === 'ingreso';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${gasto.fecha}</td>
-        <td>${gasto.categoria}</td>
-        <td>${escaparHTML(gasto.descripcion)}</td>
-        <td>$${Number(gasto.monto).toFixed(2)}</td>
+        <td>${escaparHTML(m.fecha)}</td>
+        <td class="${esIngreso ? 'tipo-ingreso' : 'tipo-egreso'}">${esIngreso ? 'Ingreso' : 'Egreso'}</td>
+        <td>${escaparHTML(m.categoria)}</td>
+        <td>${escaparHTML(m.descripcion)}</td>
+        <td class="${esIngreso ? 'tipo-ingreso' : 'tipo-egreso'}">${esIngreso ? '+' : '-'}${formatoMoneda(m.monto)}</td>
+        <td class="celda-comprobante"></td>
         <td class="acciones-celda">
-          <button type="button" class="btn-editar" data-id="${gasto.id}" aria-label="Editar gasto ${escaparHTML(gasto.descripcion)}">Editar</button>
-          <button type="button" class="btn-eliminar" data-id="${gasto.id}" aria-label="Eliminar gasto ${escaparHTML(gasto.descripcion)}">Eliminar</button>
+          <button type="button" class="btn-editar" data-id="${m.id}" aria-label="Editar ${escaparHTML(m.descripcion)}">Editar</button>
+          <button type="button" class="btn-eliminar" data-id="${m.id}" aria-label="Eliminar ${escaparHTML(m.descripcion)}">Eliminar</button>
         </td>
       `;
+
+      const celdaComprobante = tr.querySelector('.celda-comprobante');
+      if (m.url_comprobante && /^https:\/\//i.test(m.url_comprobante)) {
+        const enlace = document.createElement('a');
+        enlace.href = m.url_comprobante;
+        enlace.target = '_blank';
+        enlace.rel = 'noopener noreferrer';
+        enlace.textContent = 'Ver';
+        celdaComprobante.appendChild(enlace);
+      } else {
+        celdaComprobante.textContent = '—';
+      }
+
       listaGastos.appendChild(tr);
     }
 
     listaGastos.querySelectorAll('.btn-editar').forEach((btn) => {
       btn.addEventListener('click', () => cargarEnFormularioParaEditar(btn.dataset.id));
     });
-
     listaGastos.querySelectorAll('.btn-eliminar').forEach((btn) => {
       btn.addEventListener('click', () => solicitarBajaLogica(btn.dataset.id));
     });
@@ -283,6 +411,6 @@
   function escaparHTML(texto) {
     const div = document.createElement('div');
     div.textContent = texto;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 })();
