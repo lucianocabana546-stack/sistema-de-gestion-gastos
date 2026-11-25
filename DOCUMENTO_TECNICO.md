@@ -8,6 +8,10 @@
 | **Versión** | 2.0 |
 | **Fecha** | 23/11/2026 |
 | **Normas aplicadas** | ISO/IEC/IEEE 29148 (ERS y Casos de Uso) · ISO/IEC/IEEE 29119-3 (Documentación de pruebas) |
+| **Repositorio** | https://github.com/lucianocabana546-stack/sistema-de-gestion-gastos |
+| **Pull Request** | https://github.com/lucianocabana546-stack/sistema-de-gestion-gastos/pull/2 |
+| **Aplicación en línea** | https://lucianocabana546-stack.github.io/sistema-de-gestion-gastos/ |
+
  
 ---
  
